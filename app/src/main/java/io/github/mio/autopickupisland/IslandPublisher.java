@@ -23,6 +23,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -44,8 +46,9 @@ final class IslandPublisher {
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         String channel = ensureChannel(context, manager);
         PendingIntent open = createOpenPendingIntent(context, event);
-        String notificationTag = notificationTag(event);
-        int notificationId = notificationId(event);
+        String notificationKey = notificationKey(event, result);
+        String notificationTag = notificationTag(notificationKey);
+        int notificationId = notificationId(notificationKey);
         PendingIntent confirm = createDismissPendingIntent(
                 context, notificationTag, notificationId);
 
@@ -159,20 +162,37 @@ final class IslandPublisher {
         Intent intent = new Intent(Constants.ACTION_DISMISS)
                 .setComponent(new ComponentName(Constants.PKG_AICR,
                         Constants.AICR_WAKE_RECEIVER))
-                .setIdentifier("mio-dismiss-pickup-" + Integer.toHexString(id))
+                .setIdentifier("mio-dismiss-pickup-" + stableToken(tag))
                 .putExtra(Constants.EXTRA_NOTIFICATION_TAG, tag)
                 .putExtra(Constants.EXTRA_NOTIFICATION_ID, id);
-        return PendingIntent.getBroadcast(context, id ^ 0x4d10,
+        int requestCode = 0x4d100000 | (tag.hashCode() & 0x000fffff);
+        return PendingIntent.getBroadcast(context, requestCode,
                 intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    private static String notificationTag(PickupEvent event) {
-        return "mio.coloros.pickup." + event.sourcePackage + '.' + event.appId;
+    /** A new code gets its own focus key; a re-read of that code updates the same key. */
+    private static String notificationKey(PickupEvent event, ColorOsRecognizer.Result result) {
+        return event.sourcePackage + '\n' + event.appId + '\n' + result.code;
     }
 
-    private static int notificationId(PickupEvent event) {
-        return 0x4d490000
-                | (Math.abs((event.appId + event.sourcePackage).hashCode()) & 0xffff);
+    private static String notificationTag(String key) {
+        return "mio.coloros.pickup." + stableToken(key);
+    }
+
+    private static int notificationId(String key) {
+        return 0x4d490000 | (key.hashCode() & 0xffff);
+    }
+
+    private static String stableToken(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder(24);
+            for (int i = 0; i < 12; i++) out.append(String.format(Locale.ROOT, "%02x", digest[i]));
+            return out.toString();
+        } catch (Exception ignored) {
+            return Integer.toHexString(value.hashCode());
+        }
     }
 
     private static Intent wechatOperationIntent(PickupEvent event) {
