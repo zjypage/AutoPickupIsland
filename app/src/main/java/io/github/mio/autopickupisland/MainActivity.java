@@ -1,10 +1,13 @@
 package io.github.mio.autopickupisland;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import androidx.appcompat.app.AppCompatActivity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.ViewGroup;
@@ -51,6 +54,9 @@ public final class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 7101);
+        }
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(20), dp(20), dp(20), dp(28));
