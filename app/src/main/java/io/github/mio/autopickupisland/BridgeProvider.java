@@ -87,7 +87,11 @@ public final class BridgeProvider extends ContentProvider {
         if (data.length() > 6000) return denied("health length");
         try {
             new org.json.JSONObject(data);
-            prefs.edit().putString("hook_health_" + role, data).apply();
+            boolean saved = prefs.edit().putString("hook_health_" + role, data).commit();
+            if (saved) {
+                try { ModuleStatusNotification.update(getContext()); }
+                catch (RuntimeException ignored) { }
+            }
             Bundle result = new Bundle(); result.putBoolean("accepted", true); return result;
         } catch (Exception e) { return denied("health format"); }
     }
@@ -385,6 +389,8 @@ public final class BridgeProvider extends ContentProvider {
             if (key.startsWith("last_") || "aicr_heartbeat".equals(key)) edit.remove(key);
         }
         edit.apply();
+        try { ModuleStatusNotification.cancel(getContext()); }
+        catch (RuntimeException ignored) { }
         signalProcesses(Constants.ACTION_CLEAR_STATE);
         Bundle result = new Bundle();
         result.putBoolean("accepted", true);
